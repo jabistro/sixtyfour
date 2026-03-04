@@ -2,7 +2,9 @@ import axios from 'axios'
 import { useEffect, useRef } from 'react'
 import type { WsEvent } from '../types'
 
-const BASE_URL = '/api'
+// In production, VITE_API_URL points to the deployed backend (e.g. https://my-backend.up.railway.app).
+// In development, it's unset and the Vite proxy handles /api → localhost:8000.
+const BASE_URL = import.meta.env.VITE_API_URL ?? '/api'
 
 export const api = axios.create({
   baseURL: BASE_URL,
@@ -50,8 +52,9 @@ export function useJobWebSocket(
   useEffect(() => {
     if (!jobId) return
 
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const wsUrl = `${protocol}://${window.location.host}/ws/${jobId}`
+    const wsUrl = import.meta.env.VITE_API_URL
+      ? `${import.meta.env.VITE_API_URL.replace(/^http/, 'ws')}/ws/${jobId}`
+      : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/${jobId}`
     const ws = new WebSocket(wsUrl)
     wsRef.current = ws
 
