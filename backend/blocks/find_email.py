@@ -67,14 +67,15 @@ class FindEmailBlock(Block):
         semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
         processed_count = 0
 
+        # API only accepts these fields in the lead object
+        LEAD_FIELDS = {"name", "company", "title", "phone", "linkedin"}
+
         async def find_email_for_row(idx: int, row: dict):
             nonlocal processed_count
             async with semaphore:
                 async with httpx.AsyncClient(timeout=900) as client:
-                    payload = {
-                        "lead_info": _clean_row(row),
-                        "mode": mode,
-                    }
+                    lead = {k: v for k, v in _clean_row(row).items() if k in LEAD_FIELDS}
+                    payload = {"lead": lead, "mode": mode}
                     try:
                         response = await client.post(
                             SIXTYFOUR_API_URL,
@@ -86,18 +87,18 @@ class FindEmailBlock(Block):
                         )
                         response.raise_for_status()
                         data = response.json()
-                        # Pick best email: first OK status, then UNKNOWN
-                        email_candidates = data.get("emails", [])
+                        # Response: {"email": [[addr, status, type], ...], ...}
+                        # Pick first OK email, fallback to first available
+                        candidates = data.get("email", [])
                         best = ""
-                        for candidate in email_candidates:
-                            status = candidate.get("status", "")
-                            if status == "OK":
-                                best = candidate.get("email", "")
+                        for entry in candidates:
+                            if isinstance(entry, list) and len(entry) >= 2 and entry[1] == "OK":
+                                best = entry[0]
                                 break
                         if not best:
-                            for candidate in email_candidates:
-                                best = candidate.get("email", "")
-                                if best:
+                            for entry in candidates:
+                                if isinstance(entry, list) and entry[0]:
+                                    best = entry[0]
                                     break
                         emails[idx] = best
                     except Exception as e:
