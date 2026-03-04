@@ -3,6 +3,8 @@ import { useWorkflowStore } from '../store/workflowStore'
 import { BLOCK_META, type BlockConfig, type BlockType } from '../types'
 import { uploadCsv } from '../api/client'
 
+const SAMPLE_DATA_PATH = 'uploads/take-home-sample-data.csv'
+
 function ReadCsvConfig({ config, onChange }: { config: BlockConfig; onChange: (c: BlockConfig) => void }) {
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -20,6 +22,8 @@ function ReadCsvConfig({ config, onChange }: { config: BlockConfig; onChange: (c
       setUploading(false)
     }
   }
+
+  const isSample = config.file_path === SAMPLE_DATA_PATH
 
   return (
     <div className="space-y-3">
@@ -40,7 +44,30 @@ function ReadCsvConfig({ config, onChange }: { config: BlockConfig; onChange: (c
           onChange={handleFileUpload}
         />
       </div>
-      {config.file_path && (
+
+      <div className="relative flex items-center gap-2">
+        <div className="flex-1 h-px bg-gray-100" />
+        <span className="text-xs text-gray-400">or</span>
+        <div className="flex-1 h-px bg-gray-100" />
+      </div>
+
+      <button
+        className={`w-full px-3 py-2 text-sm rounded-lg border transition-colors text-left ${
+          isSample
+            ? 'bg-green-50 border-green-200 text-green-700'
+            : 'border-gray-200 text-gray-500 hover:border-indigo-200 hover:text-indigo-600 hover:bg-indigo-50'
+        }`}
+        onClick={() => onChange({ ...config, file_path: SAMPLE_DATA_PATH })}
+      >
+        {isSample ? '✓ Sample data selected' : '🗂 Use sample data'}
+        {!isSample && (
+          <div className="text-xs text-gray-400 mt-0.5">
+            10 leads with name, company, email, location, and LinkedIn
+          </div>
+        )}
+      </button>
+
+      {config.file_path && !isSample && (
         <div className="text-xs text-green-600 bg-green-50 rounded px-2 py-1">
           ✓ {config.file_path}
         </div>
