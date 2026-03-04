@@ -215,7 +215,10 @@ export function WorkflowCanvas() {
                   e.dataTransfer.setData('blockType', type)
                   e.dataTransfer.effectAllowed = 'move'
                 }}
-                onClick={() => addBlockNode(type)}
+                onClick={() => {
+                  addBlockNode(type)
+                  setTimeout(() => rfInstance.current?.fitView({ padding: 0.2, duration: 200 }), 0)
+                }}
                 className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-grab active:cursor-grabbing hover:scale-[1.02] active:scale-95 transition-transform select-none"
                 style={{ background: `${meta.color}15`, border: `1.5px solid ${meta.color}30` }}
               >
