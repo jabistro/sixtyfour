@@ -2,6 +2,24 @@
 
 A fullstack implementation of Sixtyfour's Workflow Engine: a drag-and-drop interface for configuring and executing modular data processing pipelines against CSV data, powered by Sixtyfour's AI enrichment APIs.
 
+**Live demo:** [sixtyfour-production-2d01.up.railway.app](https://sixtyfour-production-2d01.up.railway.app)
+
+---
+
+## Screenshots
+
+![Canvas — building a workflow](docs/screenshot-canvas.png)
+*Drag-and-drop canvas: Read CSV → Filter → Find Email*
+
+![Results — all rows after Read CSV](docs/screenshot-results-all.png)
+*Tabbed results viewer showing data at each stage of the pipeline*
+
+![Results — filtered rows](docs/screenshot-results-filtered.png)
+*After Filter: 2 rows matching company = "Ariglad Inc"*
+
+![Results — emails found](docs/screenshot-results-email.png)
+*After Find Email: emails discovered via Sixtyfour API*
+
 ---
 
 ## Challenge Overview
