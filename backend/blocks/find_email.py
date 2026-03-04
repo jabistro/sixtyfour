@@ -7,7 +7,15 @@ from .base import Block
 
 
 def _clean_row(row: dict) -> dict:
-    return {k: (None if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v) for k, v in row.items()}
+    """Omit NaN/Inf/empty fields — matches enrich-lead API conventions."""
+    result = {}
+    for k, v in row.items():
+        if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+            continue
+        if v is None or v == "":
+            continue
+        result[k] = v
+    return result
 
 SIXTYFOUR_API_URL = "https://api.sixtyfour.ai/find-email"
 MAX_CONCURRENCY = 5
