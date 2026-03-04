@@ -40,16 +40,6 @@ function ReadCsvConfig({ config, onChange }: { config: BlockConfig; onChange: (c
           onChange={handleFileUpload}
         />
       </div>
-      <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Or enter file path</label>
-        <input
-          type="text"
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400"
-          placeholder="uploads/data.csv"
-          value={config.file_path ?? ''}
-          onChange={(e) => onChange({ ...config, file_path: e.target.value })}
-        />
-      </div>
       {config.file_path && (
         <div className="text-xs text-green-600 bg-green-50 rounded px-2 py-1">
           ✓ {config.file_path}
@@ -67,44 +57,59 @@ function FilterConfig({ config, onChange }: { config: BlockConfig; onChange: (c:
         <textarea
           className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-violet-400 font-mono"
           rows={3}
-          placeholder="company.str.contains('Ariglad')"
+          placeholder="company.str.contains('ariglad')"
           value={config.expression ?? ''}
           onChange={(e) => onChange({ ...config, expression: e.target.value })}
         />
         <p className="text-xs text-gray-400 mt-1">
-          Uses pandas <code className="bg-gray-100 px-1 rounded">query()</code> syntax.
-          Examples: <code className="bg-gray-100 px-1 rounded">company == 'Acme'</code> or{' '}
-          <code className="bg-gray-100 px-1 rounded">company.str.contains('Inc')</code>
+          Use <code className="bg-gray-100 px-1 rounded">company == 'Ariglad Inc'</code> for exact matches, or{' '}
+          <code className="bg-gray-100 px-1 rounded">company.str.contains('ariglad')</code> to match partial names.
+          Both are case-insensitive.
         </p>
       </div>
     </div>
   )
 }
 
-function EnrichLeadConfig({ config, onChange }: { config: BlockConfig; onChange: (c: BlockConfig) => void }) {
-  const struct = config.struct ?? {}
+type StructField = { id: number; key: string; value: string }
+let fieldIdCounter = 0
 
-  function updateStructKey(oldKey: string, newKey: string) {
-    const updated = { ...struct }
-    const value = updated[oldKey]
-    delete updated[oldKey]
-    updated[newKey] = value ?? ''
-    onChange({ ...config, struct: updated })
+function toFields(struct: Record<string, string>): StructField[] {
+  return Object.entries(struct).map(([key, value]) => ({ id: ++fieldIdCounter, key, value }))
+}
+
+function toStruct(fields: StructField[]): Record<string, string> {
+  const struct: Record<string, string> = {}
+  for (const f of fields) struct[f.key] = f.value
+  return struct
+}
+
+function EnrichLeadConfig({ config, onChange }: { config: BlockConfig; onChange: (c: BlockConfig) => void }) {
+  const [fields, setFields] = useState<StructField[]>(() => toFields(config.struct ?? {}))
+
+  function updateKey(id: number, newKey: string) {
+    const updated = fields.map((f) => (f.id === id ? { ...f, key: newKey } : f))
+    setFields(updated)
+    onChange({ ...config, struct: toStruct(updated) })
   }
 
-  function updateStructValue(key: string, value: string) {
-    onChange({ ...config, struct: { ...struct, [key]: value } })
+  function updateValue(id: number, newValue: string) {
+    const updated = fields.map((f) => (f.id === id ? { ...f, value: newValue } : f))
+    setFields(updated)
+    onChange({ ...config, struct: toStruct(updated) })
   }
 
   function addField() {
-    const key = `field_${Object.keys(struct).length + 1}`
-    onChange({ ...config, struct: { ...struct, [key]: '' } })
+    const newField: StructField = { id: ++fieldIdCounter, key: `field_${fields.length + 1}`, value: '' }
+    const updated = [...fields, newField]
+    setFields(updated)
+    onChange({ ...config, struct: toStruct(updated) })
   }
 
-  function removeField(key: string) {
-    const updated = { ...struct }
-    delete updated[key]
-    onChange({ ...config, struct: updated })
+  function removeField(id: number) {
+    const updated = fields.filter((f) => f.id !== id)
+    setFields(updated)
+    onChange({ ...config, struct: toStruct(updated) })
   }
 
   return (
@@ -120,14 +125,14 @@ function EnrichLeadConfig({ config, onChange }: { config: BlockConfig; onChange:
           </button>
         </div>
         <div className="space-y-2">
-          {Object.entries(struct).map(([key, value]) => (
-            <div key={key} className="flex gap-2 items-center">
+          {fields.map(({ id, key, value }) => (
+            <div key={id} className="flex gap-2 items-center">
               <input
                 type="text"
                 className="flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-purple-400 font-mono"
                 placeholder="field_name"
                 value={key}
-                onChange={(e) => updateStructKey(key, e.target.value)}
+                onChange={(e) => updateKey(id, e.target.value)}
               />
               <span className="text-gray-300">:</span>
               <input
@@ -135,17 +140,17 @@ function EnrichLeadConfig({ config, onChange }: { config: BlockConfig; onChange:
                 className="flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-purple-400"
                 placeholder="description"
                 value={value}
-                onChange={(e) => updateStructValue(key, e.target.value)}
+                onChange={(e) => updateValue(id, e.target.value)}
               />
               <button
                 className="text-red-400 hover:text-red-600 text-xs"
-                onClick={() => removeField(key)}
+                onClick={() => removeField(id)}
               >
                 ✕
               </button>
             </div>
           ))}
-          {Object.keys(struct).length === 0 && (
+          {fields.length === 0 && (
             <p className="text-xs text-gray-400 italic">No fields yet. Click + Add field.</p>
           )}
         </div>
@@ -227,7 +232,7 @@ export function BlockConfigPanel() {
   }
 
   return (
-    <div className="fixed right-0 top-0 h-full w-80 bg-white shadow-2xl border-l border-gray-100 flex flex-col z-20">
+    <div className="fixed right-0 top-0 h-full w-80 bg-white shadow-2xl border-l border-gray-100 flex flex-col z-20" onKeyDown={(e) => e.stopPropagation()}>
       {/* Header */}
       <div
         className="px-5 py-4 flex items-center gap-3"

@@ -38,10 +38,10 @@ function BlockNode({ id, data, selected }: NodeProps<BlockNodeData>) {
         backdropFilter: 'blur(4px)',
       }}
     >
-      {/* Top handle */}
+      {/* Left handle (input) */}
       <Handle
         type="target"
-        position={Position.Top}
+        position={Position.Left}
         className="!w-3 !h-3 !border-2 !border-white"
         style={{ background: meta.color }}
       />
@@ -98,10 +98,10 @@ function BlockNode({ id, data, selected }: NodeProps<BlockNodeData>) {
         )}
       </div>
 
-      {/* Bottom handle */}
+      {/* Right handle (output) */}
       <Handle
         type="source"
-        position={Position.Bottom}
+        position={Position.Right}
         className="!w-3 !h-3 !border-2 !border-white"
         style={{ background: meta.color }}
       />

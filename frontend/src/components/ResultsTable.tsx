@@ -147,17 +147,21 @@ export function ResultsTable() {
                 <td className="px-3 py-1.5 text-gray-400">{i + 1}</td>
                 {snapshot.columns.map((col) => {
                   const val = row[col]
-                  const display =
-                    val === null || val === undefined
-                      ? ''
-                      : typeof val === 'object'
-                      ? JSON.stringify(val)
-                      : String(val)
+                  const isEmpty =
+                    val === null ||
+                    val === undefined ||
+                    (typeof val === 'number' && isNaN(val)) ||
+                    (typeof val === 'string' && val.trim().toLowerCase() === 'nan')
+                  const display = isEmpty
+                    ? 'Not Found'
+                    : typeof val === 'object'
+                    ? JSON.stringify(val)
+                    : String(val)
                   return (
                     <td
                       key={col}
-                      className="px-3 py-1.5 text-gray-700 max-w-xs truncate"
-                      title={display}
+                      className={`px-3 py-1.5 max-w-xs truncate ${isEmpty ? 'text-gray-300 italic' : 'text-gray-700'}`}
+                      title={isEmpty ? '' : display}
                     >
                       {display}
                     </td>

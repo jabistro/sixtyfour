@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import ReactFlow, {
   Background,
   Controls,
@@ -12,14 +12,58 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useWorkflowStore, getOrderedNodes } from '../store/workflowStore'
-import { BLOCK_META, type BlockType } from '../types'
+import { BLOCK_META, type BlockType, type BlockConfig } from '../types'
 import BlockNodeComponent from './BlockNode'
+import { TutorialModal } from './TutorialModal'
 import { executeWorkflow } from '../api/client'
 import { useJobWebSocket } from '../api/client'
 
 const nodeTypes = { blockNode: BlockNodeComponent }
 
 const PALETTE_BLOCKS: BlockType[] = ['read_csv', 'filter', 'enrich_lead', 'find_email', 'save_csv']
+
+interface ValidationError {
+  nodeId: string | null
+  label: string
+  message: string
+}
+
+function validateWorkflow(
+  nodes: Node[],
+  edges: { source: string; target: string }[],
+  nodeConfigs: Record<string, BlockConfig>,
+): ValidationError[] {
+  const errors: ValidationError[] = []
+
+  if (nodes.length > 1 && edges.length === 0) {
+    errors.push({
+      nodeId: null,
+      label: 'Connection',
+      message: 'Blocks are not connected. Drag from a block\'s right handle to the next block\'s left handle.',
+    })
+  }
+
+  for (const node of nodes) {
+    const config = nodeConfigs[node.id] ?? {}
+    const label = node.data.label as string
+    const type = node.data.blockType as BlockType
+
+    if (type === 'read_csv' && !config.file_path?.trim()) {
+      errors.push({ nodeId: node.id, label, message: 'No CSV file selected or path entered.' })
+    }
+    if (type === 'filter' && !config.expression?.trim()) {
+      errors.push({ nodeId: node.id, label, message: 'Filter expression is required.' })
+    }
+    if (type === 'enrich_lead' && Object.keys(config.struct ?? {}).length === 0) {
+      errors.push({ nodeId: node.id, label, message: 'At least one output field must be defined.' })
+    }
+    if (type === 'save_csv' && !config.output_filename?.trim()) {
+      errors.push({ nodeId: node.id, label, message: 'Output filename is required.' })
+    }
+  }
+
+  return errors
+}
 
 export function WorkflowCanvas() {
   const {
@@ -34,9 +78,12 @@ export function WorkflowCanvas() {
     activeJobId,
     handleWsEvent,
     nodeConfigs,
+    resetWorkflow,
   } = useWorkflowStore()
 
   const rfInstance = useRef<ReactFlowInstance | null>(null)
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
+  const [showNewWorkflowConfirm, setShowNewWorkflowConfirm] = useState(false)
 
   // WebSocket for active job
   useJobWebSocket(activeJobId, (event) => {
@@ -76,7 +123,13 @@ export function WorkflowCanvas() {
 
   async function handleRun() {
     if (nodes.length === 0) {
-      alert('Add at least one block to run.')
+      setValidationErrors([{ nodeId: null, label: 'Workflow', message: 'Add at least one block to the canvas before running.' }])
+      return
+    }
+
+    const errors = validateWorkflow(nodes, edges, nodeConfigs)
+    if (errors.length > 0) {
+      setValidationErrors(errors)
       return
     }
 
@@ -114,7 +167,23 @@ export function WorkflowCanvas() {
           <span className="text-indigo-600">64</span> Workflow Engine
         </div>
 
+        <button
+          className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:border-gray-300 hover:text-gray-700 hover:bg-gray-50 transition-all"
+          onClick={() => {
+            if (nodes.length === 0) {
+              resetWorkflow()
+            } else {
+              setShowNewWorkflowConfirm(true)
+            }
+          }}
+          disabled={isRunning}
+        >
+          + New Workflow
+        </button>
+
         <div className="flex-1" />
+
+        <TutorialModal />
 
         {/* Run button */}
         <button
@@ -185,6 +254,7 @@ export function WorkflowCanvas() {
             onInit={(instance) => {
               rfInstance.current = instance
             }}
+            deleteKeyCode={null}
             fitView
             snapToGrid
             snapGrid={[20, 20]}
@@ -192,7 +262,7 @@ export function WorkflowCanvas() {
             proOptions={{ hideAttribution: true }}
           >
             <Background gap={20} size={1} color="#e5e7eb" />
-            <Controls />
+            <Controls showInteractive={false} />
             <MiniMap
               nodeColor={(node) => {
                 const meta = BLOCK_META[node.data?.blockType as BlockType]
@@ -213,6 +283,123 @@ export function WorkflowCanvas() {
           )}
         </div>
       </div>
+
+      {/* New Workflow confirmation modal */}
+      {showNewWorkflowConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+          onClick={() => setShowNewWorkflowConfirm(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-5">
+              <div className="font-semibold text-gray-800 text-sm mb-1">Start a new workflow?</div>
+              <div className="text-xs text-gray-500">This will clear the current canvas. Any unsaved progress will be lost.</div>
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-colors"
+                onClick={() => setShowNewWorkflowConfirm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                onClick={() => {
+                  resetWorkflow()
+                  setShowNewWorkflowConfirm(false)
+                }}
+              >
+                Clear & Start Fresh
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Validation errors modal */}
+      {validationErrors.length > 0 && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+          onClick={() => setValidationErrors([])}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+              <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <span className="text-red-500 text-sm font-bold">!</span>
+              </div>
+              <div className="flex-1">
+                <div className="font-semibold text-gray-800 text-sm">Fix before running</div>
+                <div className="text-xs text-gray-400">
+                  {validationErrors.length} issue{validationErrors.length > 1 ? 's' : ''} found
+                </div>
+              </div>
+              <button
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                onClick={() => setValidationErrors([])}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Error list */}
+            <div className="px-5 py-3 space-y-2 max-h-72 overflow-y-auto">
+              {validationErrors.map((err, i) => {
+                const blockType = err.nodeId
+                  ? (nodes.find((n) => n.id === err.nodeId)?.data.blockType as BlockType | undefined)
+                  : null
+                const meta = blockType ? BLOCK_META[blockType] : null
+                return (
+                  <button
+                    key={i}
+                    className="w-full text-left flex items-start gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors group"
+                    onClick={() => {
+                      if (err.nodeId) {
+                        setSelectedNodeId(err.nodeId)
+                        setValidationErrors([])
+                      }
+                    }}
+                  >
+                    <span className="text-base mt-0.5 flex-shrink-0">
+                      {meta ? meta.icon : '🔗'}
+                    </span>
+                    <div className="min-w-0">
+                      <div
+                        className="text-xs font-semibold"
+                        style={{ color: meta?.color ?? '#6b7280' }}
+                      >
+                        {err.label}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">{err.message}</div>
+                    </div>
+                    {err.nodeId && (
+                      <span className="ml-auto text-xs text-indigo-400 opacity-0 group-hover:opacity-100 flex-shrink-0 self-center">
+                        Fix →
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
+              <button
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                onClick={() => setValidationErrors([])}
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

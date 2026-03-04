@@ -43,6 +43,9 @@ interface WorkflowStore {
   applyJobPoll: (jobId: string, data: Record<string, unknown>) => void
   jobs: Record<string, JobState>
   handleWsEvent: (jobId: string, event: WsEvent) => void
+
+  // Reset
+  resetWorkflow: () => void
 }
 
 export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
@@ -170,6 +173,19 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
     }),
 
   jobs: {},
+
+  resetWorkflow: () =>
+    set((state) => ({
+      nodes: [],
+      edges: [],
+      nodeConfigs: {},
+      nodeStatuses: {},
+      nodeRowProgress: {},
+      selectedNodeId: null,
+      activeJobId: null,
+      jobs: {},
+      apiKey: state.apiKey, // preserve API key
+    })),
 
   handleWsEvent: (jobId, event) => {
     const { nodes, setNodeStatus, setNodeRowProgress } = get()
