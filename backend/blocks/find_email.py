@@ -28,12 +28,20 @@ class FindEmailBlock(Block):
         if not api_key:
             raise ValueError("FindEmail block requires an 'api_key' config value")
 
+        def _has_valid_email(val) -> bool:
+            if val is None:
+                return False
+            if isinstance(val, float):
+                return False  # NaN or inf
+            s = str(val).strip().lower()
+            return s not in ("", "nan", "none", "not found")
+
         # Skip rows that already have an email
         has_email = "email" in df.columns
         total = len(df)
         rows_to_process = [
             i for i in range(total)
-            if not has_email or not df.iloc[i].get("email")
+            if not has_email or not _has_valid_email(df.iloc[i].get("email"))
         ]
         skipped = total - len(rows_to_process)
 
